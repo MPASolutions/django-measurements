@@ -41,7 +41,7 @@ def load_serie(data, serie_id):
     df['serie_id'] = serie_id
     conflict_columns = ['serie_id', 'timestamp']
 
-    datadict = df.to_dict(orient='record')
+    datadict = df.to_dict(orient='records')
     Measure.extra.on_conflict(conflict_columns,
                               ConflictAction.UPDATE).bulk_insert(datadict)
     return True
