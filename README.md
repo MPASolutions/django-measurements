@@ -24,8 +24,8 @@ pip install django-measurements
         ...
         'measurements',
         'django_extensions',
-	'django.contrib.postgres',
-	'psqlextra',
+        'django.contrib.postgres',
+        'psqlextra',
     )
 
 
@@ -33,6 +33,6 @@ pip install django-measurements
     ```python
     urlpatterns = [
         path('admin/', admin.site.urls),
-	path('measurements/', include('measurements.urls')),
+        path('measurements/', include('measurements.urls')),
     ]
     ```

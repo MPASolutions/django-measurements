@@ -2,7 +2,7 @@ from django.conf import settings
 # from django.contrib import admin
 from django.contrib.gis import admin
 from .models import Parameter, Sensor, Location, Serie, Measure, Network, SourceType, Station, ParameterMapping
-from leaflet.admin import LeafletGeoAdmin
+# from leaflet.admin import LeafletGeoAdmin
 
 load_google = False
 try:
@@ -20,9 +20,15 @@ try:
 except (KeyError, AttributeError) as e:
     formfield_overrides = {}
 
+    try:
+        from leaflet.admin import LeafletGeoAdmin
 
-    class LocationAdmin(LeafletGeoAdmin):
-        display_raw = True
+        class LocationAdmin(LeafletGeoAdmin):
+            display_raw = True
+
+    except:
+        class LocationAdmin(admin.ModelAdmin):
+            display_raw = True
 
 
 class ParameterAdmin(admin.ModelAdmin):
