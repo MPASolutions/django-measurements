@@ -1,15 +1,18 @@
 from measurements.settings import DATABASE_ROUNTING
 
+
 class MeasurementsRouter:
     """
     A router to control all database operations on models in the
     measurements application.
     """
+    ROUTING_APPLICATIONS = ['measurements']
+
     def db_for_read(self, model, **hints):
         """
         Attempts to read measurements models go to measurements_db.
         """
-        if model._meta.app_label == 'measurements':
+        if model._meta.app_label in self.ROUTING_APPLICATIONS:
             return DATABASE_ROUNTING
         return None
 
@@ -17,7 +20,7 @@ class MeasurementsRouter:
         """
         Attempts to write measurements models go to measurements_db.
         """
-        if model._meta.app_label == 'measurements':
+        if model._meta.app_label in self.ROUTING_APPLICATIONS:
             return DATABASE_ROUNTING
         return None
 
@@ -25,9 +28,9 @@ class MeasurementsRouter:
         """
         Allow relations if a model in the measurements app is involved.
         """
-        if obj1._meta.app_label == 'measurements' or \
-           obj2._meta.app_label == 'measurements':
-           return True
+        if obj1._meta.app_label in self.ROUTING_APPLICATIONS or \
+           obj2._meta.app_label in self.ROUTING_APPLICATIONS:
+            return True
         return None
 
     def allow_migrate(self, db, app_label, model_name=None, **hints):
@@ -35,6 +38,6 @@ class MeasurementsRouter:
         Make sure the measurements app only appears in the 'measurements_db'
         database.
         """
-        if app_label == 'measurements':
+        if app_label in self.ROUTING_APPLICATIONS:
             return db == DATABASE_ROUNTING
         return None
