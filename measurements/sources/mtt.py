@@ -40,7 +40,7 @@ class MttAPI(BaseSource):
                 return None
             for r in parent_node.findall(childs, namespaces):
                 row = {}
-                for c in r.getchildren():
+                for c in list(r):
                     k = c.tag[30:]
                     v = c.text
                     if k == 'data':
