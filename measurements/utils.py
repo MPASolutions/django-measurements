@@ -5,7 +5,6 @@ import numpy as np
 from psqlextra.query import ConflictAction
 from measurements.models import Measure, Station, Parameter, Sensor, Serie, Location
 import colorbrewer
-from numpy import array
 
 
 def get_serie(station, parameter, sensor='unknown', height=None, location=None):
@@ -56,7 +55,10 @@ def strong_float(value):
 
 def get_time(time):
     now = datetime.now()
-    if time == 'today':
+    if time == "last":
+        start_time = now - timedelta(hours=1)
+        end_time = now
+    elif time == 'today':
         start_time = now.replace(hour=0, minute=0, second=0, microsecond=0)
         end_time = now.replace(hour=23, minute=59, second=59, microsecond=0)
     elif time == 'yesterday':
@@ -88,6 +90,19 @@ def get_time(time):
     return start_time, end_time
 
 
+def get_bins(values_list, k=8, zeros=True):
+    values = np.array(values_list)
+    if not zeros:
+        _values = values[values != 0]
+    else:
+        _values = values
+    #
+    if _values[_values != 0].size == 0:
+        _values = np.array([0, 1])
+    counts, bins = np.histogram(_values, bins=k)
+    return counts, bins
+
+
 def classify_fc(fc, k=8, zeros=True, cmap='Blues'):
     """Classify in place a FeatureCollection object.
 
@@ -96,15 +111,9 @@ def classify_fc(fc, k=8, zeros=True, cmap='Blues'):
     k -- number of classes
     """
     items = fc['features']
-    values = array([float(i['properties']['value']) for i in items])
-    if not zeros:
-        _values = values[values != 0]
-    else:
-        _values = values
-    #
-    if _values[_values != 0].size == 0:
-        _values = array([0, 1])
-    counts, bins = np.histogram(_values, bins=k)
+    values_list = [float(i['properties']['value']) for i in items]
+
+    counts, bins = get_bins(values_list, k, zeros)
     # classes = Equal_Interval(_values, k)
 
     # cmap = get_cmap(cmap, k)
