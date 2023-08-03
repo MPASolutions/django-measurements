@@ -66,6 +66,7 @@ class LocationManager(models.Manager):
 
 class Location(models.Model):
     label = models.CharField(max_length=150)
+    description = models.TextField(null=True, blank=True)
     geo = models.PointField(srid=4326, null=True)
     elevation = models.IntegerField(null=True, blank=True)
     image = models.ImageField(null=True, blank=True)

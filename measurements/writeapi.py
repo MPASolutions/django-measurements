@@ -11,6 +11,7 @@ import pytz
 import numpy as np
 import pandas as pd
 import io
+from django.contrib.auth.decorators import login_required, permission_required
 
 from .utils import get_serie
 
@@ -24,8 +25,14 @@ SERIE_FIELDS = set(['station', 'sensor', 'parameter'])
 SERIES_CACHE = {}
 
 
+@login_required
 @csrf_exempt
 def write_csv(request):
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False,
+                             "message": "Your account does not have sufficient permissions",
+        })
+
     data = request.body.decode().strip()
     df = pd.read_csv(io.StringIO(data),
                      index_col=None,
@@ -37,7 +44,7 @@ def write_csv(request):
     df.sensor = df.sensor.fillna('unknown')
     # create missing series
     _df = df[['parameter', 'sensor', 'station']].drop_duplicates()
-    for r in _df.to_dict(orient='record'):
+    for r in _df.to_dict(orient='records'):
         get_serie(**r)
     sdf = pd.DataFrame(Serie.objects.values('id', 'parameter__code', 'station__code', 'sensor__code'))
     sdf.rename(columns={'id': 'serie_id',
@@ -51,18 +58,24 @@ def write_csv(request):
     _df = dfm[cnames].copy()
 
     for chunk in np.array_split(_df, _df.shape[0] // 1000 + 1):
-        datadict = chunk.to_dict(orient='record')
+        datadict = chunk.to_dict(orient='records')
         Measure.extra.on_conflict(['serie_id', 'timestamp'],
                                   ConflictAction.UPDATE).bulk_insert(datadict)
     return JsonResponse({"success": True})
 
 
+@login_required
 @csrf_exempt
 def write(request):
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False,
+                             "message": "Your account does not have sufficient permissions",
+        })
     # rjson = json.loads(request.body)
     # _write(rjson)
     # return JsonResponse(rjson, safe=False)
     # return HttpResponse(request.body)
+    a = request.body
     res = write_data(request.body)
     # split res
 
