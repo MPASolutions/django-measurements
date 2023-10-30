@@ -9,7 +9,7 @@ import requests
 import pandas as pd
 from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
-
+import pytz
 
 from measurements.sources.base import BaseSource
 
@@ -38,5 +38,24 @@ class ElmedAPI(BaseSource):
         df.set_index('Datum', inplace=True)
         self.df = df
 
-        self.df.index = self.df.index.tz_localize(self.tz)
+        try:
+            # try to localize the index. The datetime info is returned localized in
+            # Europe/Rome already, but without the TZ info, and returns a single record
+            # for ambiguous times.
+            self.df.index = self.df.index.tz_localize(self.tz)
+        except pytz.exceptions.AmbiguousTimeError:
+            # when there is ambiguity because of DST, create a boolean array to specify
+            # whether it's a DST time or not.
+            # To do that, localize the records that work, drop those that do not work,
+            # and select the latest DST info. This heuristic should allow to parse the
+            # single returned ambiguous time with the "old" DST the first time it is
+            # encountered, and with the "new" DST the second time.
+            localized_index = self.df.index.tz_localize(self.tz, ambiguous="NaT")
+            latest_ts_is_dst = localized_index.dropna()[-1].dst().seconds > 0
+
+            ambiguous = localized_index.map(
+                lambda d: d.dst().seconds > 0 if d is not pd.NaT else latest_ts_is_dst
+            )
+            self.df.index = self.df.index.tz_localize(self.tz, ambiguous=ambiguous)
+
         return df
