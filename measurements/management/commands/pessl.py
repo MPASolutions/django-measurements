@@ -12,7 +12,7 @@ PARAMETER_MAP = {"Precipitation|sum": "Precipitation", #
                  "HC Relative humidity|avg": "RelHumidity", #http://vocab.nerc.ac.uk/collection/P01/current/CHUMZZ01/
                  "Dew Point|avg": "DewPoint", # http://vocab.nerc.ac.uk/collection/P01/current/CDEWZZ01/
                  "Wind speed|avg": "WindSpeed", # http://vocab.nerc.ac.uk/collection/P01/current/EWSBZZ01/
-                 "Solar radiation|avg": "SolarRad", # http://vocab.nerc.ac.uk/collection/P01/current/CSLRR101/
+                 "Solar radiation|avg": "GlobalRad",
                  }
 
 
