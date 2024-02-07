@@ -8,6 +8,9 @@ from django_pandas.io import read_frame
 from measurements import ureg, Q_
 from pint.errors import UndefinedUnitError
 import numpy as np
+from timescale.db.models.fields import TimescaleDateTimeField
+from timescale.db.models.managers import TimescaleManager
+
 
 
 def validate_uom(value):
@@ -184,12 +187,13 @@ class Serie(models.Model):
 class Measure(models.Model):
     id = models.BigAutoField(primary_key=True)
     serie = models.ForeignKey(Serie, on_delete=models.CASCADE)
-    timestamp = models.DateTimeField(db_index=True)
+    timestamp = TimescaleDateTimeField(interval="1 week")
 
     value = models.FloatField()
 
     objects = models.Manager()
     # extra = PostgresManager()
+    timescale = TimescaleManager()
 
     class Meta:
-        unique_together = ('serie', 'timestamp') #, 'value')
+        unique_together = ('timestamp', 'serie')
