@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 
-from psqlextra.query import ConflictAction
+# from psqlextra.query import ConflictAction
 from measurements.models import Measure, Station, Parameter, Sensor, Serie, Location
 import colorbrewer
 
@@ -41,8 +41,17 @@ def load_serie(data, serie_id):
     conflict_columns = ['serie_id', 'timestamp']
 
     datadict = df.to_dict(orient='records')
-    Measure.extra.on_conflict(conflict_columns,
-                              ConflictAction.UPDATE).bulk_insert(datadict)
+
+    # Measure.extra.on_conflict(conflict_columns,
+    #                           ConflictAction.UPDATE).bulk_insert(datadict)
+
+    Measure.objects.bulk_create(
+        [Measure(**row) for row in datadict],
+        update_conflicts=True,
+        unique_fields=conflict_columns,
+        update_fields=["serie_id", "value", "timestamp"],
+    )
+
     return True
 
 

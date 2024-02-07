@@ -3,7 +3,7 @@ from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from .models import Sensor, Station, Parameter, Serie, Measure
-from psqlextra.query import ConflictAction
+# from psqlextra.query import ConflictAction
 from basicauth.decorators import basic_auth_required
 from django.http import HttpResponse
 from datetime import datetime
@@ -59,8 +59,15 @@ def write_csv(request):
 
     for chunk in np.array_split(_df, _df.shape[0] // 1000 + 1):
         datadict = chunk.to_dict(orient='records')
-        Measure.extra.on_conflict(['serie_id', 'timestamp'],
-                                  ConflictAction.UPDATE).bulk_insert(datadict)
+        # Measure.extra.on_conflict(['serie_id', 'timestamp'],
+        #                           ConflictAction.UPDATE).bulk_insert(datadict)
+        Measure.objects.bulk_create(
+            [Measure(**row) for row in datadict],
+            update_conflicts=True,
+            unique_fields=["serie_id", "timestamp"],
+            update_fields=["serie_id", "value", "timestamp"],
+        )
+
     return JsonResponse({"success": True})
 
 
@@ -91,8 +98,16 @@ def write_data(body):
     df = pd.DataFrame(datadict)
     datadict = df.drop_duplicates(subset=['timestamp', 'serie_id'], keep='last').to_dict(orient='records')
 
-    Measure.extra.on_conflict(['timestamp', 'serie_id'],
-                              ConflictAction.UPDATE).bulk_insert(datadict)
+    # Measure.extra.on_conflict(['timestamp', 'serie_id'],
+    #                           ConflictAction.UPDATE).bulk_insert(datadict)
+
+    Measure.objects.bulk_create(
+        [Measure(**row) for row in datadict],
+        update_conflicts=True,
+        unique_fields=["serie_id", "timestamp"],
+        update_fields=["serie_id", "value", "timestamp"],
+    )
+
     stats = {'updated': -1,
              'created': -1}
     return stats

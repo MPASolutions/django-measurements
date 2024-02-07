@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.contrib.postgres.fields import ArrayField
 from django.utils.text import slugify
 from django_pandas.io import read_frame
-from psqlextra.manager import PostgresManager
+# from psqlextra.manager import PostgresManager
 from measurements import ureg, Q_
 from pint.errors import UndefinedUnitError
 import numpy as np
@@ -44,7 +44,7 @@ class Parameter(models.Model):
                            blank=True, null=True)
 
     objects = models.Manager()
-    extra = PostgresManager()
+    # extra = PostgresManager()
 
     def __str__(self):
         if self.uom is None:
@@ -58,7 +58,7 @@ class Sensor(models.Model):
     label = models.CharField(max_length=150, blank=True, null=True)
 
     objects = models.Manager()
-    extra = PostgresManager()
+    # extra = PostgresManager()
 
     def __str__(self):
         return u'{}'.format(self.label)
@@ -86,7 +86,7 @@ class Location(models.Model):
     image = models.ImageField(null=True, blank=True)
 
     objects = LocationManager()
-    extra = PostgresManager()
+    # extra = PostgresManager()
 
     def __str__(self):
         return u'{}'.format(self.label)
@@ -127,7 +127,7 @@ class Station(models.Model):
     uri = models.URLField(blank=True, null=True, help_text="DataSource/Station endpoint")
 
     objects = models.Manager()
-    extra = PostgresManager()
+    # extra = PostgresManager()
 
     def __str__(self):
         l = getattr(self, 'label') or getattr(self, 'code')
@@ -161,7 +161,7 @@ class Serie(models.Model):
     stats_outliers = ArrayField(models.IntegerField(), blank=True, null=True)
 
     objects = models.Manager()
-    extra = PostgresManager()
+    # extra = PostgresManager()
 
     def set_mean(self, threshold=5):
         df = read_frame(Measure.objects.filter(serie=self),
@@ -185,10 +185,11 @@ class Measure(models.Model):
     id = models.BigAutoField(primary_key=True)
     serie = models.ForeignKey(Serie, on_delete=models.CASCADE)
     timestamp = models.DateTimeField(db_index=True)
+
     value = models.FloatField()
 
     objects = models.Manager()
-    extra = PostgresManager()
+    # extra = PostgresManager()
 
     class Meta:
         unique_together = ('serie', 'timestamp') #, 'value')
