@@ -20,6 +20,20 @@ def validate_uom(value):
     raise ValidationError("The provided unit of measure ({}) is not identifiable. Please provide a valid name.".format(value))
 
 
+class PhysicalParameter(models.Model):
+    """The PhysicalParameter model is used to represent physical parameters with
+    standard codes and labels. For example, the parameter 'HC Air Temperature' should
+    point to a PhysicalParameter instance with code="AtTemp" and label="Air Temperature"
+    """
+    code = models.CharField(max_length=100)
+    uri = models.URLField(
+        blank=True,
+        null=True,
+        help_text="Reference to a controlled vocabulary (eg. NERC)",
+    )
+    label = models.CharField(max_length=150, blank=True, null=True)
+
+
 class Parameter(models.Model):
     code = models.CharField(max_length=100)
     uri = models.URLField(blank=True, null=True, help_text="Reference to a controlled vocabulary (eg. NERC)")
