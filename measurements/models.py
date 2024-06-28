@@ -42,6 +42,13 @@ class Parameter(models.Model):
                            validators=[validate_uom],
                            help_text="unit of measure based on python-pint unit registry (eg. meter, kelvin)",
                            blank=True, null=True)
+    physical_parameter = models.ForeignKey(
+        PhysicalParameter,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Reference to a standardized physical parameter",
+    )
 
     objects = models.Manager()
     extra = PostgresManager()
