@@ -31,7 +31,7 @@ class PhysicalParameter(models.Model):
         help_text="Reference to a controlled vocabulary (eg. NERC)",
     )
     label = models.CharField(max_length=150, blank=True, null=True)
-    series_layer_options = models.JSONField(
+    layer_options = models.JSONField(
         blank=True,
         null=True,
         help_text="Default options to use to render thisparameter in a map layer",

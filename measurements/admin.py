@@ -35,7 +35,7 @@ class ParameterAdmin(admin.ModelAdmin):
     pass
 
 class PhysicalParameterAdmin(admin.ModelAdmin):
-    pass
+    list_display = ("code", "label")
 
 class SensorAdmin(admin.ModelAdmin):
     pass
