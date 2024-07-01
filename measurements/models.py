@@ -9,7 +9,6 @@ from measurements import ureg, Q_
 from pint.errors import UndefinedUnitError
 import numpy as np
 
-
 def validate_uom(value):
     if value is None:
         return value
@@ -32,6 +31,14 @@ class PhysicalParameter(models.Model):
         help_text="Reference to a controlled vocabulary (eg. NERC)",
     )
     label = models.CharField(max_length=150, blank=True, null=True)
+    layer_options = models.JSONField(
+        blank=True,
+        null=True,
+        help_text="Default options to use to render thisparameter in a map layer",
+    )
+
+    def __str__(self):
+        return self.code
 
 
 class Parameter(models.Model):
@@ -42,6 +49,13 @@ class Parameter(models.Model):
                            validators=[validate_uom],
                            help_text="unit of measure based on python-pint unit registry (eg. meter, kelvin)",
                            blank=True, null=True)
+    physical_parameter = models.ForeignKey(
+        PhysicalParameter,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Reference to a standardized physical parameter",
+    )
 
     objects = models.Manager()
     extra = PostgresManager()
