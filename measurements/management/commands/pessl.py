@@ -8,12 +8,51 @@ from measurements.utils import get_serie, load_serie
 
 PARAMETER_MAP = {"Precipitation|sum": "Precipitation", #
                  "Leaf Wetness|time": "LeafWet", #
-                 'HC Air temperature|avg': "AtTemp", # http://vocab.nerc.ac.uk/collection/P01/current/CTMPZZ01/
+                 "HC Air temperature|avg": "AtTemp", # http://vocab.nerc.ac.uk/collection/P01/current/CTMPZZ01/
+                 "Air temperature, high precision|avg": "AtTemp",
                  "HC Relative humidity|avg": "RelHumidity", #http://vocab.nerc.ac.uk/collection/P01/current/CHUMZZ01/
+                 "Relative humidity|avg": "RelHumidity",
                  "Dew Point|avg": "DewPoint", # http://vocab.nerc.ac.uk/collection/P01/current/CDEWZZ01/
                  "Wind speed|avg": "WindSpeed", # http://vocab.nerc.ac.uk/collection/P01/current/EWSBZZ01/
                  "Solar radiation|avg": "GlobalRad",
                  }
+
+# parametri disponibili 8/5/25
+# ['Air temperature, high precision|avg',
+#  'Air temperature, high precision|max',
+#  'Air temperature, high precision|min',
+#  'Battery|last',
+#  'DeltaT|avg',
+#  'DeltaT|max',
+#  'DeltaT|min',
+#  'Dew Point|avg',
+#  'Dew Point|min',
+#  'EAG Soil moisture|avg',
+#  'HC Air temperature|avg',
+#  'HC Air temperature|max',
+#  'HC Air temperature|min',
+#  'HC Relative humidity|avg',
+#  'HC Relative humidity|max',
+#  'HC Relative humidity|min',
+#  'Leaf Wetness|time',
+#  'Precipitation|sum',
+#  'Relative humidity|avg',
+#  'Relative humidity|max',
+#  'Relative humidity|min',
+#  'Soil temperature|avg',
+#  'Soil temperature|max',
+#  'Soil temperature|min',
+#  'Solar Panel|last',
+#  'Solar radiation|avg',
+#  'Sunshine duration|time',
+#  'VPD|avg',
+#  'VPD|min',
+#  'Volumetric Ionic Content|avg',
+#  'Wind direction|avg',
+#  'Wind direction|last',
+#  'Wind speed max|max',
+#  'Wind speed|avg',
+#  'Wind speed|max']
 
 
 class Command(BaseCommand):
