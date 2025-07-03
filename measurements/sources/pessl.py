@@ -75,7 +75,7 @@ class PesslAPI(BaseSource):
             for rp in repeated_columns:
                 df_0 = df[rp].iloc[:, 0].copy()
                 for colidx in range(1, len(df[rp].columns)):
-                    if df_0.equals(df[rp].iloc[:, colidx]):
+                    if not df_0.equals(df[rp].iloc[:, colidx]):
                         import logging
                         logging.error(f"Multiple columns with the same name found in Pessl data for {rp} selected the first one, but please check.")
 
