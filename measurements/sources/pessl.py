@@ -65,6 +65,22 @@ class PesslAPI(BaseSource):
         # index = pd.to_datetime(index, unit='ms')
         df = pd.DataFrame(_data, columns=columns, index=index, dtype='float')
         df.columns = colindex
+
+        vc = df.columns.value_counts()
+        repeated_columns = vc[vc > 1].index
+        if len(repeated_columns) > 0:
+            # multiple columns with the same name, wtf ??
+            # check if they are the same, if not, log an error also with the pyhton logger
+
+            for rp in repeated_columns:
+                df_0 = df[rp].iloc[:, 0].copy()
+                for colidx in range(1, len(df[rp].columns)):
+                    if not df_0.equals(df[rp].iloc[:, colidx]):
+                        import logging
+                        logging.error(f"Multiple columns with the same name found in Pessl data for {rp} selected the first one, but please check.")
+
+            df = df.loc[:, ~df.columns.duplicated()]
+
         return df
 
 
