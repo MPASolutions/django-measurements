@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 
 from measurements.sources.cmems_wms import CMEMSWmsDataSource
 from measurements.models import SourceType
-from measurements.utils import get_serie, load_serie
+from measurements.utils import StationLoadReport, get_serie, load_serie, write_load_outcome
 from measurements import  ureg, Q_
 
 class Command(BaseCommand):
@@ -51,8 +51,9 @@ class Command(BaseCommand):
                     if uom is not None and source_uom is not None and uom != source_uom:
                         df['value'] = Q_(df.value.array, source_uom).to(uom).magnitude
                     if df.shape[0] > 0:
-                        load_serie(df['value'].copy(), series.id)
-                        self.stdout.write("nrecords {}".format(df.shape[0]), ending='')
-                        self.stdout.write("[OK]")
+                        # rows alone say the service answered, not that the answer is current
+                        report = StationLoadReport(label=str(series))
+                        report.add(load_serie(df['value'].copy(), series.id))
+                        write_load_outcome(self, report)
                     else:
-                        self.stdout.write("[FAILED]")
+                        self.stdout.write(self.style.ERROR("[FAILED] no data returned by the provider"))

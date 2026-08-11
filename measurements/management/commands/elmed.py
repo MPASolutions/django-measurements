@@ -4,7 +4,7 @@ from django.core.management.base import BaseCommand
 from measurements.settings import SOURCE_AUTH
 from measurements.sources.elmed import ElmedAPI
 from measurements.models import SourceType
-from measurements.utils import get_serie, load_serie
+from measurements.utils import StationLoadReport, get_serie, load_serie, write_load_outcome
 
 PARAMETER_MAP = {"temp2m": "AtTemp",
                  # "nasstemp": "At_temp_WetBulb",
@@ -39,6 +39,9 @@ class Command(BaseCommand):
                                 keys['private_key'])
             df = elmedapi.get_df(s.code, hours)
             if df is not None and df.shape[0] > 0:
+                # rows returned only prove the provider answered: a logger that stopped sending
+                # keeps its history on the service and would be reported as loaded every run
+                report = StationLoadReport(label=str(s))
                 for k, _v in PARAMETER_MAP.items():
                     if not isinstance(_v, str):
                         v, height = _v
@@ -47,7 +50,7 @@ class Command(BaseCommand):
                         height = None
                     if k in df.columns:
                         serie = get_serie(s, v, height=height)
-                        load_serie(df[k].copy(), serie.id)
-                self.stdout.write("[OK]")
+                        report.add(load_serie(df[k].copy(), serie.id))
+                write_load_outcome(self, report)
             else:
-                self.stdout.write("[FAILED]")
+                self.stdout.write(self.style.ERROR("[FAILED] no data returned by the provider"))
