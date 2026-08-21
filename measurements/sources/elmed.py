@@ -30,11 +30,24 @@ class ElmedAPI(BaseSource):
                    "start_date": start_date.strftime('%d-%m-%Y'),
                    "end_date": end_date.strftime('%d-%m-%Y')
                    }
-        r = requests.get(self.baseurl, params=payload)
+        try:
+            r = requests.get(self.baseurl, params=payload, timeout=60)
+        except requests.RequestException as e:
+            print("ELMED: connection error for station {}: {}".format(code, e))
+            self.df = None
+            return None
+
+        # the endpoint answers 200 even on its own internal failures, returning a
+        # plain text message (e.g. "Error Database constructor") instead of a CSV
+        if r.status_code != 200 or "Datum" not in r.text.split("\n", 1)[0]:
+            print("ELMED: unexpected response for station {}: {}".format(code, r.text[:200]))
+            self.df = None
+            return None
+
         df = pd.read_csv(io.StringIO(r.text))
 
         # set datetime index
-        df.Datum = pd.to_datetime(df.Datum, format="%Y%m%d %H:%M:%S")
+        df["Datum"] = pd.to_datetime(df["Datum"], format="%Y%m%d %H:%M:%S")
         df.set_index('Datum', inplace=True)
         self.df = df
 
