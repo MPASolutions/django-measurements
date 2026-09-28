@@ -71,4 +71,9 @@ class ElmedAPI(BaseSource):
             )
             self.df.index = self.df.index.tz_localize(self.tz, ambiguous=ambiguous)
 
-        return df
+        # the endpoint takes whole days and answers from midnight of start_date, so a
+        # request for the last 24 hours returns up to 48: keep only the hours asked for
+        since = pd.Timestamp.now(tz=self.tz) - pd.Timedelta(hours=last)
+        self.df = self.df[self.df.index >= since]
+
+        return self.df
