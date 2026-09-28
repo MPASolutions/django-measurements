@@ -3,11 +3,9 @@ from django.contrib.gis.db import models
 from django.core.exceptions import ValidationError
 from django.contrib.postgres.fields import ArrayField
 from django.utils.text import slugify
-from django_pandas.io import read_frame
 # from psqlextra.manager import PostgresManager
 from measurements import ureg, Q_
 from pint.errors import UndefinedUnitError
-import numpy as np
 from timescale.db.models.fields import TimescaleDateTimeField
 from timescale.db.models.managers import TimescaleManager
 
@@ -179,20 +177,6 @@ class Serie(models.Model):
 
     objects = models.Manager()
     # extra = PostgresManager()
-
-    def set_mean(self, threshold=5):
-        df = read_frame(Measure.objects.filter(serie=self),
-                        index_col='timestamp')
-
-        df['pandas'] = df['value'].rolling(window=5, center=True).median().fillna(method='bfill').fillna(method='ffill')
-
-        difference = np.abs(df['value'] - df['pandas'])
-        outlier_idx = difference > threshold
-
-        # print df.loc[outlier_idx, 'value'].shape
-        self.stats_mean = df.loc[~outlier_idx, 'value'].mean()
-        self.save()
-        return self.stats_mean
 
     def __str__(self):
         return u'{} - {} - {}'.format(self.station, self.parameter, self.sensor.label)

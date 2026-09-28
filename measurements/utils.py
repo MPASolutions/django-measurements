@@ -4,7 +4,9 @@ import numpy as np
 
 # from psqlextra.query import ConflictAction
 from django.db import DEFAULT_DB_ALIAS, connections, router
+from django.utils import timezone
 from measurements.models import Measure, Station, Parameter, Sensor, Serie, Location
+from measurements.quality import SerieQualityControl
 import colorbrewer
 
 # Columns touched by the load_serie() upsert below. The WHERE clause that
@@ -47,6 +49,19 @@ def load_serie(data, serie_id: int) -> bool:
     df.columns = ['timestamp', 'value']
     df['serie_id'] = serie_id
 
+    # values no sensor can report are never written, and removed if an earlier load wrote them
+    # while it could not judge them yet (a spike on the last sample has no neighbour after it)
+    quality_control = SerieQualityControl.get_for_serie(serie_id)
+    if quality_control is not None:
+        flags = quality_control.get_flags(df['timestamp'], df['value'])
+        quality_control.log_flags(serie_id, df['timestamp'], flags)
+        failed = flags == quality_control.FAIL
+        if failed.any():
+            Measure.objects.filter(serie_id=serie_id, timestamp__in=list(df.loc[failed, 'timestamp'])).delete()
+            df = df[~failed]
+        if df.shape[0] == 0:
+            return False
+
     _upsert_measures(df.to_dict(orient='records'))
 
     return True
@@ -54,30 +69,35 @@ def load_serie(data, serie_id: int) -> bool:
 
 def _upsert_measures(rows: list[dict[str, object]]) -> None:
     """
-    Upsert rows into Measure, rewriting a conflicting row only when it actually changed.
+    Upsert rows into Measure, touching a stored row only when it actually changed.
 
-    Django's bulk_create(update_conflicts=True) builds an
-    INSERT ... ON CONFLICT DO UPDATE with no way to add a WHERE, so every
-    conflicting row is rewritten even when nothing changed: a re-download of
-    a window already loaded turns into a full row rewrite for every sample,
-    which on the measures hypertable defeats HOT updates and keeps
-    rewriting the UNIQUE index and both GIN indexes for data that never
-    moved.
+    Providers are downloaded again over windows already loaded, so most of the rows offered here
+    are already stored and identical. Two costs follow, and each has its own remedy.
 
-    This issues the same statement by hand, adding
-    WHERE ... IS DISTINCT FROM EXCLUDED. ... on every column the upsert
-    updates (not just value), so a real change on any of them still writes.
-    IS DISTINCT FROM is used instead of <> because it treats NULL correctly
-    (two NULLs are not "different", unlike with <>, which is what a naive
-    condition would get wrong). The comparison is exact on purpose: values
-    reach here already parsed to the same float64 the column stores, so an
-    identical reading re-sent by the same provider is bit-for-bit identical,
-    while a tolerance would risk silently swallowing a real correction the
-    provider sends for the same timestamp.
+    Django's bulk_create(update_conflicts=True) builds an INSERT ... ON CONFLICT DO UPDATE with no
+    way to add a WHERE, so every conflicting row is rewritten even when nothing changed, which on
+    the measures hypertable defeats HOT updates and keeps rewriting the UNIQUE index and both GIN
+    indexes. The statement is therefore written by hand with WHERE ... IS DISTINCT FROM EXCLUDED. ...
+    on every column the upsert updates (not just value), so a real change on any of them still
+    writes. IS DISTINCT FROM is used instead of <> because it treats NULL correctly.
 
-    Field values go through Field.get_db_prep_save(), the same documented
-    extension point Django's own bulk_create relies on, so this does not
-    have to reimplement type adaptation (timezone handling included).
+    Even with that WHERE, a row that reaches ON CONFLICT is locked first, and the lock is written to
+    the WAL: on PostgreSQL 15 an upsert of 50,000 identical rows writes no tuple but about 6 MB of
+    WAL. The offered rows are therefore compared with the stored ones in the same statement, and
+    only the new or different ones go on to the INSERT. The stored rows are read through a
+    subquery bounded on the series and on the time span of the batch, with constants, so
+    TimescaleDB excludes the other chunks when it plans the query. ON CONFLICT stays: two loads of
+    the same window can still run together, and the second one must not fail on the key.
+
+    The comparison is exact on purpose: values reach here already parsed to the same float64 the
+    column stores, so an identical reading re-sent by the same provider is bit-for-bit identical,
+    while a tolerance would risk silently swallowing a real correction the provider sends for the
+    same timestamp.
+
+    Field values go through Field.get_db_prep_save(), the same documented extension point Django's
+    own bulk_create relies on, so this does not have to reimplement type adaptation (timezone
+    handling included); each placeholder is cast to the type of its column, because a VALUES list
+    read by a SELECT has no target column to take the type from.
     """
     if not rows:
         return
@@ -89,6 +109,10 @@ def _upsert_measures(rows: list[dict[str, object]]) -> None:
     def quoted(name: str) -> str:
         return connection.ops.quote_name(fields[name].column)
 
+    def prepared(name: str, value: object) -> object:
+        """Adapt a value to its column, as bulk_create would."""
+        return fields[name].get_db_prep_save(value, connection=connection)
+
     table = connection.ops.quote_name(Measure._meta.db_table)
     columns_sql = ", ".join(quoted(name) for name in _MEASURE_UPDATE_COLUMNS)
     conflict_sql = ", ".join(quoted(name) for name in _MEASURE_CONFLICT_COLUMNS)
@@ -96,16 +120,40 @@ def _upsert_measures(rows: list[dict[str, object]]) -> None:
     changed_sql = " OR ".join(
         f"{table}.{quoted(name)} IS DISTINCT FROM EXCLUDED.{quoted(name)}" for name in _MEASURE_UPDATE_COLUMNS
     )
-    row_placeholder = "({})".format(", ".join(["%s"] * len(_MEASURE_UPDATE_COLUMNS)))
+    joined_sql = " AND ".join(f"stored.{quoted(name)} = offered.{quoted(name)}" for name in _MEASURE_CONFLICT_COLUMNS)
+    different_sql = " OR ".join(
+        f"stored.{quoted(name)} IS DISTINCT FROM offered.{quoted(name)}"
+        for name in _MEASURE_UPDATE_COLUMNS
+        if name not in _MEASURE_CONFLICT_COLUMNS
+    )
+    row_placeholder = "({})".format(
+        ", ".join(f"CAST(%s AS {fields[name].db_type(connection)})" for name in _MEASURE_UPDATE_COLUMNS)
+    )
 
     params = []
     for row in rows:
-        params.extend(
-            fields[name].get_db_prep_save(row[name], connection=connection) for name in _MEASURE_UPDATE_COLUMNS
-        )
+        params.extend(prepared(name, row[name]) for name in _MEASURE_UPDATE_COLUMNS)
+
+    serie_ids = sorted({row["serie_id"] for row in rows})
+    params.extend(prepared("serie_id", serie_id) for serie_id in serie_ids)
+    for bound in (min(row["timestamp"] for row in rows), max(row["timestamp"] for row in rows)):
+        # with USE_TZ = False the bound is naive, and PostgreSQL casts a naive value to timestamptz
+        # by the session time zone, a cast it deems only stable: TimescaleDB then cannot exclude
+        # chunks when it plans the query and reads them all (measured: 40 out of 40 for a batch
+        # spanning 2). Given the zone the session would use, the value is the same and becomes a
+        # constant the planner can exclude chunks with
+        if isinstance(bound, datetime) and timezone.is_naive(bound):
+            bound = timezone.make_aware(bound, connection.timezone)
+        params.append(prepared("timestamp", bound))
 
     sql = (
-        f"INSERT INTO {table} ({columns_sql}) VALUES {', '.join([row_placeholder] * len(rows))} "
+        f"INSERT INTO {table} ({columns_sql}) "
+        f"SELECT {', '.join(f'offered.{quoted(name)}' for name in _MEASURE_UPDATE_COLUMNS)} "
+        f"FROM (VALUES {', '.join([row_placeholder] * len(rows))}) AS offered ({columns_sql}) "
+        f"LEFT JOIN (SELECT {columns_sql} FROM {table} "
+        f"WHERE {quoted('serie_id')} IN ({', '.join(['%s'] * len(serie_ids))}) "
+        f"AND {quoted('timestamp')} BETWEEN %s AND %s) AS stored ON {joined_sql} "
+        f"WHERE stored.{quoted('serie_id')} IS NULL OR {different_sql} "
         f"ON CONFLICT ({conflict_sql}) DO UPDATE SET {set_sql} WHERE {changed_sql}"
     )
 
