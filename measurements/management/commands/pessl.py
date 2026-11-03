@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 
 # from meteo.pgutils import load_data
 from measurements.settings import SOURCE_AUTH
-from measurements.sources.pessl import PesslAPI
+from measurements.sources.pessl import API_V0, PesslAPI
 from measurements.models import SourceType
 from measurements.utils import get_serie, load_serie
 
@@ -72,7 +72,8 @@ class Command(BaseCommand):
             self.stdout.write("Loading station {} ... ".format(s), ending='')
             keys = SOURCE_AUTH['pessl'][s.network.code]
             pesslapi = PesslAPI(keys['public_key'],
-                                keys['private_key'])
+                                keys['private_key'],
+                                api_version=keys.get('api_version', API_V0))
             df = pesslapi.get_df(s.code, hours)
             if df is not None and df.shape[0] > 0:
                 for k, v in PARAMETER_MAP.items():

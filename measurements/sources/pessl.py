@@ -11,14 +11,20 @@ from Crypto.Hash import SHA256
 
 from measurements.sources.base import BaseSource
 
+# v0 answers on the unversioned routes (/pretty/...), v2 needs an API subscription on the FieldClimate account
+API_V0 = "v0"
+API_V2 = "v2"
+
+
 class PesslAPI(BaseSource):
     name = "pessl"
 
-    def __init__(self, public_key, private_key, tz='Etc/GMT-1'):
+    def __init__(self, public_key, private_key, tz='Etc/GMT-1', api_version=API_V0):
         self.baseurl = "https://api.fieldclimate.com"
         self.public_key = public_key
         self.private_key = private_key
         self.tz = tz
+        self.api_version = api_version
 
     def get_auth_headers(self, request, method="GET"):
         d = datetime.datetime.utcnow()
@@ -41,7 +47,7 @@ class PesslAPI(BaseSource):
             "Accept": "application/json",
             "Authorization": "hmac {}:{}".format(self.public_key,
                                                  signature),
-            "Date": "{}".format(timestamp)
+            "Request-Date" if self.api_version == API_V2 else "Date": "{}".format(timestamp)
         }
         return headers
 
@@ -90,6 +96,8 @@ class PesslAPI(BaseSource):
         """
         route: pretty, data, ...
         """
+        if self.api_version == API_V2:
+            return self._get_data_v2(code, last)
 
         request = "/{}/{}/raw/last/{}".format(route, code, last)
         headers = self.get_auth_headers(request)
@@ -107,6 +115,31 @@ class PesslAPI(BaseSource):
             self.report_invalid_body(code, r, "the JSON with the data and dates keys")
             return False
         return data
+
+    def _get_data_v2(self, code, last):
+        """Download from API v2 and return the data in the shape of the v0 pretty route read by _todf."""
+        # the route is signed without the version prefix
+        request = "/data/{}/raw/last/{}".format(code, last)
+        headers = self.get_auth_headers(request)
+        url = "{}/{}{}".format(self.baseurl, API_V2, request)
+        r = self.download(url, code, headers=headers)
+        if r is None:
+            return False
+        try:
+            data = r.json()
+        except ValueError:
+            self.report_invalid_body(code, r, "JSON")
+            return False
+        if not isinstance(data, dict) or not isinstance(data.get("data"), list) or "dates" not in data:
+            self.report_invalid_body(code, r, "the JSON with the data list and the dates key")
+            return False
+        # name is translated in the language of the account, name_original is the English one of PARAMETER_MAP;
+        # calculated sensors have no name_original and no aggr, their aggregates are the keys of values
+        sensors = {
+            str(i): {"name": s.get("name_original", s["name"]), "aggr": s["values"]}
+            for i, s in enumerate(data["data"])
+        }
+        return {"dates": data["dates"], "data": sensors}
 
     def get_df(self, code, last=24):
         d = self._get_data(code, route='pretty', last=last)
