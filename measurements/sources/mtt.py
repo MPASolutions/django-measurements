@@ -4,7 +4,6 @@ import hmac
 import hashlib
 import urllib3
 urllib3.disable_warnings()
-import requests
 import pandas as pd
 
 import xml.etree.ElementTree as et
@@ -13,14 +12,24 @@ from measurements.sources.base import BaseSource
 from measurements.utils import strong_float
 
 class MttAPI(BaseSource):
+    name = "mtt"
+
     def __init__(self, tz='Etc/GMT-1'):
         self.baseurl = "http://dati.meteotrentino.it/service.asmx/ultimiDatiStazione?"
         self.tz = tz
 
     def get_df(self, code, last=1):
         url = self.baseurl + 'codice=' + code
-        r = requests.get(url)
-        self.df = self.parse_xml(r.text)
+        r = self.download(url, code)
+        if r is None:
+            self.df = None
+            return None
+        try:
+            self.df = self.parse_xml(r.text)
+        except et.ParseError:
+            self.report_invalid_body(code, r, "XML")
+            self.df = None
+            return None
 
         if self.df is not None:
             self.df.index = pd.to_datetime(self.df.index)

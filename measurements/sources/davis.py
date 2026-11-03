@@ -4,7 +4,6 @@ import hmac
 import hashlib
 import urllib3
 urllib3.disable_warnings()
-import requests
 import pandas as pd
 import csv
 from dateutil import parser
@@ -16,20 +15,30 @@ from measurements.sources.base import BaseSource
 from measurements.utils import strong_float
 
 class DavisAPI(BaseSource):
+    name = "davis"
+
     def __init__(self, tz='Europe/Rome'):
         self.baseurl = "http://www.meteosystem.com/wlip/"
         self.tz = tz
 
     def get_df(self, code, last=1):
         url = self.baseurl + code + '.php'
-        r = requests.get(url)
-        decoded_content = r.content.decode('utf-8')
+        response = self.download(url, code)
+        if response is None:
+            self.df = None
+            return None
+        decoded_content = response.content.decode('utf-8')
         reader = csv.reader(decoded_content.splitlines(),
                             delimiter='|',
                             doublequote=False,
                             quoting=csv.QUOTE_NONE)
         data = []
         for j, row in enumerate(reader):
+            # each row is expected with at least 59 fields, the date in the second and the time in the first
+            if len(row) < 59:
+                self.report_invalid_body(code, response, "rows of 59 pipe separated fields")
+                self.df = None
+                return None
             data_str = row[1] + ' ' + row[0].replace('ERR', '').replace('.', ':')
             _datetime = parser.parse(data_str, dayfirst=True)
             r = {'datetime': _datetime,

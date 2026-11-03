@@ -25,6 +25,9 @@ class Command(BaseCommand):
             self.stdout.write("Loading station {} ... ".format(s), ending='')
             davisapi = DavisAPI()
             df = davisapi.get_df(s.code, 5)
+            if df is None:
+                self.stdout.write("[FAILED]")
+                continue
             for k, v in PARAMETER_MAP.items():
                 if k in df.columns:
                     serie = get_serie(s, v)

@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 import urllib3
 urllib3.disable_warnings()
-import requests
 import pandas as pd
 from bs4 import BeautifulSoup
 
@@ -15,26 +14,35 @@ ARSO_PARAMS = {'znacilna_visina_valov': 'WAVEH',
 
 
 class ArsoAPI(BaseSource):
+    name = "arso"
+
     def __init__(self, tz='UTC'):
         self.baseurl = 'http://www.arso.gov.si/xml/vode/hidro_podatki_zadnji.xml'
         self.tz = tz
         self.data = None
         self.stations = None
 
-    def get_data(self, force=False):
+    def get_data(self, force: bool = False, code: str = "all") -> BeautifulSoup | None:
+        """
+        Download the XML of the last values of all the stations.
+
+        code only names the station in the error message: the XML is the same for every station.
+        """
         if self.data is not None and not force:
             return self.data
-        else:
-            r = requests.get(self.baseurl)
-            self.data = BeautifulSoup(r.text, 'xml')
-            return self.data
+        r = self.download(self.baseurl, code)
+        if r is None:
+            return None
+        self.data = BeautifulSoup(r.text, 'xml')
+        return self.data
 
     def get_stations(self):
         if self.stations is not None:
             return self.stations
         else:
             self.stations = {}
-            self.get_data()
+            if self.get_data() is None:
+                return self.stations
             for s in self.data.find_all('postaja'):
                 code = s.attrs['sifra']
                 label = s.merilno_mesto.string
@@ -44,7 +52,10 @@ class ArsoAPI(BaseSource):
     def get_df(self, code, last=1):
         parameter = 'SLEV'
 
-        stations = self.get_data()
+        stations = self.get_data(code=code)
+        if stations is None:
+            self.df = None
+            return None
 
         data = []
         for p in stations.find_all('postaja', sifra=code):

@@ -4,7 +4,6 @@ import hmac
 import hashlib
 import urllib3
 urllib3.disable_warnings()
-import requests
 import pandas as pd
 from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
@@ -13,6 +12,8 @@ from Crypto.Hash import SHA256
 from measurements.sources.base import BaseSource
 
 class PesslAPI(BaseSource):
+    name = "pessl"
+
     def __init__(self, public_key, private_key, tz='Etc/GMT-1'):
         self.baseurl = "https://api.fieldclimate.com"
         self.public_key = public_key
@@ -93,17 +94,19 @@ class PesslAPI(BaseSource):
         request = "/{}/{}/raw/last/{}".format(route, code, last)
         headers = self.get_auth_headers(request)
         url = "{}{}".format(self.baseurl, request)
+        r = self.download(url, code, headers=headers, verify=False)
+        if r is None:
+            return False
         try:
-            r = requests.get(url, headers=headers, verify=False)
-        except:
-            print('Connection error')
+            data = r.json()
+        except ValueError:
+            self.report_invalid_body(code, r, "JSON")
             return False
-        else:
-            if r.status_code == 200:
-                return r.json()
-            else:
-                pass
+        # _todf reads both keys: any other answer (e.g. an error object) would end in a KeyError
+        if not isinstance(data, dict) or "data" not in data or "dates" not in data:
+            self.report_invalid_body(code, r, "the JSON with the data and dates keys")
             return False
+        return data
 
     def get_df(self, code, last=24):
         d = self._get_data(code, route='pretty', last=last)

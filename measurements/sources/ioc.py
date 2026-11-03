@@ -1,7 +1,6 @@
 from datetime import datetime
 import urllib3
 urllib3.disable_warnings()
-import requests
 import pandas as pd
 from bs4 import BeautifulSoup
 
@@ -9,6 +8,8 @@ from measurements.sources.base import BaseSource
 
 
 class IocAPI(BaseSource):
+    name = "ioc"
+
     def __init__(self, tz='UTC'):
         self.baseurl = "http://www.ioc-sealevelmonitoring.org/bgraph.php?code={}&output=tab&period=7"
         self.tz = tz
@@ -16,10 +17,15 @@ class IocAPI(BaseSource):
     def get_df(self, code, last=1):
         parameter = 'SLEV'
 
-        r = requests.get(self.baseurl.format(code))
+        r = self.download(self.baseurl.format(code), code)
+        if r is None:
+            self.df = None
+            return None
         soup = BeautifulSoup(r.text, "html.parser")
         table = soup.find("table")
         if table is None:
+            self.report_invalid_body(code, r, "a page with the data table")
+            self.df = None
             return None
         rows = table.find_all('tr')
         data = []

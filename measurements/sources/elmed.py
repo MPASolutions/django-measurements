@@ -5,7 +5,6 @@ import hmac
 import hashlib
 import urllib3
 urllib3.disable_warnings()
-import requests
 import pandas as pd
 from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
@@ -14,6 +13,8 @@ import pytz
 from measurements.sources.base import BaseSource
 
 class ElmedAPI(BaseSource):
+    name = "elmed"
+
     def __init__(self, public_key, private_key, tz='Europe/Rome'):
         self.baseurl = "http://www.elmedweb.com/MeteoWeb/download/download.php?"
         self.public_key = public_key
@@ -30,17 +31,15 @@ class ElmedAPI(BaseSource):
                    "start_date": start_date.strftime('%d-%m-%Y'),
                    "end_date": end_date.strftime('%d-%m-%Y')
                    }
-        try:
-            r = requests.get(self.baseurl, params=payload, timeout=60)
-        except requests.RequestException as e:
-            print("ELMED: connection error for station {}: {}".format(code, e))
+        r = self.download(self.baseurl, code, params=payload)
+        if r is None:
             self.df = None
             return None
 
         # the endpoint answers 200 even on its own internal failures, returning a
         # plain text message (e.g. "Error Database constructor") instead of a CSV
-        if r.status_code != 200 or "Datum" not in r.text.split("\n", 1)[0]:
-            print("ELMED: unexpected response for station {}: {}".format(code, r.text[:200]))
+        if "Datum" not in r.text.split("\n", 1)[0]:
+            self.report_invalid_body(code, r, "a CSV starting with the Datum header")
             self.df = None
             return None
 
